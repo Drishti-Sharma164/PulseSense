@@ -1,4 +1,4 @@
-# PulseSense ❤️
+# PulseSense 
 ### Understanding, Simulating and Visualizing the Electrical Activity of the Human Heart
 
 PulseSense is a heart monitoring and ECG visualization project developed using Python. It explores how the human heart generates electrical impulses, how these signals can be acquired through sensors and microcontrollers, and how Python can be used to process and visualize them.
