@@ -53,6 +53,9 @@ sampling_frequency = record.fs
 number_of_signals = record.n_sig
 total_duration = record.sig_len / record.fs
 
+annotation = wfdb.rdann("ecg_dataset/100", "atr")
+annotation_times = annotation.sample / sampling_frequency
+
 st.divider()
 
 # Display metrics
@@ -101,6 +104,15 @@ b, a = butter(
 filtered_full_signal = filtfilt(b, a, ecg_signal)
 filtered_signal = filtered_full_signal[:samples]
 
+# Select annotations within displayed samples
+annotation_mask = annotation.sample < samples
+display_annotation_samples = annotation.sample[annotation_mask]
+display_annotation_times = display_annotation_samples / sampling_frequency
+annotation_voltages = filtered_full_signal[display_annotation_samples]
+
+print("Time values:", len(display_annotation_times))
+print("Voltage values:", len(annotation_voltages))
+
 #R PEAK detection 
 peaks, properties = find_peaks(
     filtered_signal,
@@ -112,18 +124,14 @@ peaks, properties = find_peaks(
 # ---------------- CALCULATE RR INTERVALS ----------------
 
 peak_times = peaks / sampling_frequency
-
 rr_intervals = np.diff(peak_times)
 
 
 # ---------------- CALCULATE HEART RATE ----------------
 
 if len(rr_intervals) > 0:
-
     heart_rate = 60 / np.mean(rr_intervals)
-
 else:
-
     heart_rate = 0
 
 
@@ -142,8 +150,6 @@ col2.metric(
     "Detected R-Peaks",
     len(peaks)
 )
-
-
 st.divider()
 
 # Plot ECG
@@ -163,6 +169,21 @@ ax[1].set_title("Filtered ECG Signal")
 ax[1].set_xlabel("Time (seconds)")
 ax[1].set_ylabel(f"Voltage ({record.units[channel]})")
 ax[1].grid(True)
+ax[1].plot(
+    display_annotation_times,
+    annotation_voltages,
+    'gx',
+    label="Expert Annotations"
+)
+
+ax[1].plot(
+    peak_times,
+    filtered_signal[peaks],
+    'ro',
+    label="Detected R-Peaks"
+)
+
+ax[1].legend()
 
 st.pyplot(fig)
 
