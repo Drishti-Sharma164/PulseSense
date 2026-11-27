@@ -1,8 +1,9 @@
-
 import streamlit as st
 import wfdb
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.signal import butter, filtfilt
+from scipy.signal import find_peaks
 
 st.markdown("""
 <style>
@@ -15,12 +16,12 @@ st.markdown("""
 
 /* Sidebar */
 section[data-testid="stSidebar"] {
-    background-color: #183153;
+    background-color: #167D8D;
 }
 
 /* Sidebar text */
 section[data-testid="stSidebar"] * {
-    color: rgb(13, 170, 136);
+    color: #071B2B;
 }
 
 </style>
@@ -30,7 +31,6 @@ section[data-testid="stSidebar"] * {
 st.markdown(
     """
     <h1 style="color:#183153; font-size:42px;">
-        <span style="font-family:'Segoe UI"></span>
         PulseSense
     </h1>
     """,
@@ -85,36 +85,87 @@ ecg_signal = record.p_signal[:, channel]
 
 # Select required samples
 samples = int(duration * sampling_frequency)
-
 signal_section = ecg_signal[:samples]
 
 # Create time axis
 time = np.arange(samples) / sampling_frequency
 
+#Designing filter(butterworth filter)
+b, a = butter(
+    4,
+    [0.5, 40],
+    btype='bandpass',
+    fs=sampling_frequency
+)
+# Apply filter
+filtered_full_signal = filtfilt(b, a, ecg_signal)
+filtered_signal = filtered_full_signal[:samples]
+
+#R PEAK detection 
+peaks, properties = find_peaks(
+    filtered_signal,
+    distance=int(0.5 * sampling_frequency),
+    prominence=0.5
+)
+
+
+# ---------------- CALCULATE RR INTERVALS ----------------
+
+peak_times = peaks / sampling_frequency
+
+rr_intervals = np.diff(peak_times)
+
+
+# ---------------- CALCULATE HEART RATE ----------------
+
+if len(rr_intervals) > 0:
+
+    heart_rate = 60 / np.mean(rr_intervals)
+
+else:
+
+    heart_rate = 0
+
+
+# ---------------- DISPLAY HEART RATE ----------------
+
+st.subheader("Heart Rate Analysis")
+
+col1, col2 = st.columns(2)
+
+col1.metric(
+    "Estimated Heart Rate",
+    f"{heart_rate:.1f} BPM" if heart_rate > 0 else "Not available"
+)
+
+col2.metric(
+    "Detected R-Peaks",
+    len(peaks)
+)
+
+
+st.divider()
+
 # Plot ECG
 st.subheader(f"ECG Waveform - {record.sig_name[channel]}")
 
-fig, ax = plt.subplots(figsize=(14, 5))
+fig, ax = plt.subplots(2, 1, figsize=(14, 8))
 
-ax.plot(time, signal_section)
+# Original ECG
+ax[0].plot(time, signal_section)
+ax[0].set_title("Original ECG Signal")
+ax[0].set_ylabel(f"Voltage ({record.units[channel]})")
+ax[0].grid(True)
 
-ax.set_xlabel("Time (seconds)")
-ax.set_ylabel(f"Voltage ({record.units[channel]})")
-ax.set_title("Real ECG Signal")
-ax.grid(True)
+# Filtered ECG
+ax[1].plot(time, filtered_signal)
+ax[1].set_title("Filtered ECG Signal")
+ax[1].set_xlabel("Time (seconds)")
+ax[1].set_ylabel(f"Voltage ({record.units[channel]})")
+ax[1].grid(True)
 
 st.pyplot(fig)
 
 st.divider()
 
-# Footer
-st.markdown(
-    "### About PulseSense\n"
-    "PulseSense is an educational ECG visualisation project "
-    "built using Python, Streamlit and the WFDB library. "
-    "It uses recorded ECG data from the MIT-BIH database."
-)
 
-st.caption(
-    "Educational demonstration only — not intended for medical diagnosis."
-)
